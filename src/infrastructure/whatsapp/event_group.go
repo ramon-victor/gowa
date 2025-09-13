@@ -2,6 +2,7 @@ package whatsapp
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -70,7 +71,7 @@ func forwardGroupInfoToWebhook(ctx context.Context, evt *events.GroupInfo) error
 
 			// Use webhook service to submit the event
 			if err := webhookService.SubmitWebhook(ctx, "group."+action.actionType, payload); err != nil {
-				logrus.Warnf("Failed to submit group %s webhook: %v", action.actionType, err)
+				return fmt.Errorf("submit group %s webhook failed: %w", action.actionType, err)
 			}
 
 			logrus.Infof("Group %s event forwarded to webhook: %d users %s", action.actionType, len(action.jids), action.actionType)

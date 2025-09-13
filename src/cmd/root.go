@@ -254,7 +254,12 @@ func initApp() {
 	// Webhook repository and usecase
 	webhookRepo := webhookInfra.NewSQLiteRepository(chatStorageDB)
 	webhookUsecase = usecase.NewWebhookService(webhookRepo)
-	webhookRepo.InitializeSchema()
+	
+	err = webhookRepo.InitializeSchema()
+	if err != nil {
+		// Terminate the application if webhook schema initialization fails to avoid downstream issues
+		logrus.Fatalf("failed to initialize webhook schema: %v", err)
+	}
 	
 	// Initialize webhook service
 	whatsapp.InitWebhookService(webhookRepo)

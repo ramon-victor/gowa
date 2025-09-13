@@ -11,88 +11,70 @@ import (
 )
 
 func ValidateCreateWebhook(request *webhook.CreateWebhookRequest) error {
-	validEvents := strings.Join(webhook.ValidEvents, ", ")
-	
-	err := validation.ValidateStruct(request,
-		validation.Field(&request.URL,
-			validation.Required,
-			validation.By(validateWebhookURL),
-			is.URL,
-		),
-		validation.Field(&request.Secret,
-			validation.Length(0, 255),
-		),
-		validation.Field(&request.Events,
-			validation.Required,
-			validation.Length(1, 0).Error("at least one event must be selected"),
-			validation.Each(
-				validation.Required,
-				validation.By(func(value interface{}) error {
-					event, ok := value.(string)
-					if !ok {
-						return fmt.Errorf("must be a string")
-					}
-					for _, validEvent := range webhook.ValidEvents {
-						if event == validEvent {
-							return nil
-						}
-					}
-					return fmt.Errorf("must be one of: %s", validEvents)
-				}),
-			),
-		),
-		validation.Field(&request.Description,
-			validation.Length(0, 500),
-		),
-	)
-
+	err := validateWebhookCommon(request.URL, request.Secret, request.Events, request.Description)
 	if err != nil {
 		return pkgError.ValidationError(err.Error())
 	}
-
 	return nil
 }
 
 func ValidateUpdateWebhook(request *webhook.UpdateWebhookRequest) error {
-	validEvents := strings.Join(webhook.ValidEvents, ", ")
-	
-	err := validation.ValidateStruct(request,
-		validation.Field(&request.URL,
-			validation.Required,
-			validation.By(validateWebhookURL),
-			is.URL,
-		),
-		validation.Field(&request.Secret,
-			validation.Length(0, 255),
-		),
-		validation.Field(&request.Events,
-			validation.Required,
-			validation.Length(1, 0).Error("at least one event must be selected"),
-			validation.Each(
-				validation.Required,
-				validation.By(func(value interface{}) error {
-					event, ok := value.(string)
-					if !ok {
-						return fmt.Errorf("must be a string")
-					}
-					for _, validEvent := range webhook.ValidEvents {
-						if event == validEvent {
-							return nil
-						}
-					}
-					return fmt.Errorf("must be one of: %s", validEvents)
-				}),
-			),
-		),
-		validation.Field(&request.Description,
-			validation.Length(0, 500),
-		),
-	)
-
+	err := validateWebhookCommon(request.URL, request.Secret, request.Events, request.Description)
 	if err != nil {
 		return pkgError.ValidationError(err.Error())
 	}
+	return nil
+}
 
+func validateWebhookCommon(url, secret string, events []string, description string) error {
+	validEvents := strings.Join(webhook.ValidEvents, ", ")
+	
+	// Validate URL
+	if err := validation.Validate(url,
+		validation.Required,
+		validation.By(validateWebhookURL),
+		is.URL,
+	); err != nil {
+		return err
+	}
+	
+	// Validate Secret
+	if err := validation.Validate(secret,
+		validation.Length(0, 255),
+	); err != nil {
+		return err
+	}
+	
+	// Validate Events
+	if err := validation.Validate(events,
+		validation.Required,
+		validation.Length(1, 0).Error("at least one event must be selected"),
+		validation.Each(
+			validation.Required,
+			validation.By(func(value interface{}) error {
+				event, ok := value.(string)
+				if !ok {
+					return fmt.Errorf("must be a string")
+				}
+				for _, validEvent := range webhook.ValidEvents {
+					if event == validEvent {
+						return nil
+					}
+				}
+				return fmt.Errorf("must be one of: %s", validEvents)
+			}),
+		),
+	); err != nil {
+		return err
+	}
+	
+	// Validate Description
+	if err := validation.Validate(description,
+		validation.Length(0, 500),
+	); err != nil {
+		return err
+	}
+	
 	return nil
 }
 

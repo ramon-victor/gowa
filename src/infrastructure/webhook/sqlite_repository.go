@@ -3,9 +3,12 @@ package webhook
 import (
 	"database/sql"
 	"encoding/json"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/aldinokemal/go-whatsapp-web-multidevice/domains/webhook"
+	pkgError "github.com/aldinokemal/go-whatsapp-web-multidevice/pkg/error"
 	"github.com/google/uuid"
 )
 
@@ -18,6 +21,19 @@ func NewSQLiteRepository(db *sql.DB) webhook.IWebhookRepository {
 }
 
 func (r *SQLiteRepository) InitializeSchema() error {
+	// Start transaction
+	tx, err := r.db.Begin()
+	if err != nil {
+		return err
+	}
+	
+	// Defer rollback in case of error
+	defer func() {
+		if err != nil {
+			tx.Rollback()
+		}
+	}()
+	
 	// Create the table with all columns
 	query := `
 		CREATE TABLE IF NOT EXISTS webhooks (
@@ -31,7 +47,7 @@ func (r *SQLiteRepository) InitializeSchema() error {
 			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		)
 	`
-	_, err := r.db.Exec(query)
+	_, err = tx.Exec(query)
 	if err != nil {
 		return err
 	}
@@ -41,7 +57,7 @@ func (r *SQLiteRepository) InitializeSchema() error {
 	
 	for _, column := range columnsToCheck {
 		var count int
-		err = r.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('webhooks') WHERE name = ?`, column).Scan(&count)
+		err = tx.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('webhooks') WHERE name = ?`, column).Scan(&count)
 		if err != nil {
 			return err
 		}
@@ -49,17 +65,17 @@ func (r *SQLiteRepository) InitializeSchema() error {
 		if count == 0 {
 			switch column {
 			case "secret":
-				_, err = r.db.Exec(`ALTER TABLE webhooks ADD COLUMN secret TEXT`)
+				_, err = tx.Exec(`ALTER TABLE webhooks ADD COLUMN secret TEXT`)
 			case "events":
-				_, err = r.db.Exec(`ALTER TABLE webhooks ADD COLUMN events TEXT NOT NULL DEFAULT '[]'`)
+				_, err = tx.Exec(`ALTER TABLE webhooks ADD COLUMN events TEXT NOT NULL DEFAULT '[]'`)
 			case "enabled":
-				_, err = r.db.Exec(`ALTER TABLE webhooks ADD COLUMN enabled BOOLEAN DEFAULT TRUE`)
+				_, err = tx.Exec(`ALTER TABLE webhooks ADD COLUMN enabled BOOLEAN DEFAULT TRUE`)
 			case "description":
-				_, err = r.db.Exec(`ALTER TABLE webhooks ADD COLUMN description TEXT`)
+				_, err = tx.Exec(`ALTER TABLE webhooks ADD COLUMN description TEXT`)
 			case "created_at":
-				_, err = r.db.Exec(`ALTER TABLE webhooks ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`)
+				_, err = tx.Exec(`ALTER TABLE webhooks ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`)
 			case "updated_at":
-				_, err = r.db.Exec(`ALTER TABLE webhooks ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`)
+				_, err = tx.Exec(`ALTER TABLE webhooks ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`)
 			}
 			
 			if err != nil {
@@ -75,10 +91,16 @@ func (r *SQLiteRepository) InitializeSchema() error {
 	}
 	
 	for _, indexQuery := range indexQueries {
-		_, err = r.db.Exec(indexQuery)
+		_, err = tx.Exec(indexQuery)
 		if err != nil {
 			return err
 		}
+	}
+	
+	// Commit transaction
+	err = tx.Commit()
+	if err != nil {
+		return err
 	}
 	
 	return nil
@@ -87,6 +109,10 @@ func (r *SQLiteRepository) InitializeSchema() error {
 func (r *SQLiteRepository) Create(wh *webhook.Webhook) error {
 	if wh.ID == "" {
 		wh.ID = uuid.New().String()
+	}
+	
+	if err := validateWebhookURL(wh.URL); err != nil {
+		return err
 	}
 	
 	eventsJSON, err := json.Marshal(wh.Events)
@@ -230,4 +256,26 @@ func (r *SQLiteRepository) scanWebhook(scanner interface{ Scan(...any) error }) 
 	}
 	
 	return &wh, nil
+}
+
+func validateWebhookURL(urlStr string) error {
+	urlStr = strings.TrimSpace(urlStr)
+	if urlStr == "" {
+		return pkgError.ValidationError("URL cannot be empty")
+	}
+	
+	parsedURL, err := url.ParseRequestURI(urlStr)
+	if err != nil {
+		return pkgError.ValidationError("Invalid URL format: " + err.Error())
+	}
+	
+	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+		return pkgError.ValidationError("URL scheme must be http or https")
+	}
+	
+	if parsedURL.Host == "" {
+		return pkgError.ValidationError("URL must contain a host")
+	}
+	
+	return nil
 }
