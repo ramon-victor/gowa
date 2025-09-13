@@ -124,7 +124,7 @@ func (r *SQLiteRepository) Create(wh *webhook.Webhook) error {
 	wh.CreatedAt = now
 	wh.UpdatedAt = now
 	
-	query := `INSERT INTO webhooks (id, url, secret, events, enabled, description, created_at, updated_at) 
+	query := `INSERT INTO webhooks (id, url, secret, events, enabled, description, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
 	
 	_, err = r.db.Exec(query, wh.ID, wh.URL, wh.Secret, string(eventsJSON), wh.Enabled, wh.Description, wh.CreatedAt, wh.UpdatedAt)
@@ -163,6 +163,10 @@ func (r *SQLiteRepository) FindByID(id string) (*webhook.Webhook, error) {
 }
 
 func (r *SQLiteRepository) Update(wh *webhook.Webhook) error {
+	if err := validateWebhookURL(wh.URL); err != nil {
+		return err
+	}
+	
 	eventsJSON, err := json.Marshal(wh.Events)
 	if err != nil {
 		return err
@@ -170,7 +174,7 @@ func (r *SQLiteRepository) Update(wh *webhook.Webhook) error {
 	
 	wh.UpdatedAt = time.Now()
 	
-	query := `UPDATE webhooks SET url = ?, secret = ?, events = ?, enabled = ?, description = ?, updated_at = ? 
+	query := `UPDATE webhooks SET url = ?, secret = ?, events = ?, enabled = ?, description = ?, updated_at = ?
 		WHERE id = ?`
 	
 	_, err = r.db.Exec(query, wh.URL, wh.Secret, string(eventsJSON), wh.Enabled, wh.Description, wh.UpdatedAt, wh.ID)

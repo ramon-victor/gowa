@@ -8,4 +8,5 @@ type IWebhookUsecase interface {
 	DeleteWebhook(id string) error
 	GetWebhooksByEvent(event string) ([]*Webhook, error)
 	GetEnabledWebhooks() ([]*Webhook, error)
+	GetAvailableEvents() ([]string, error)
 }

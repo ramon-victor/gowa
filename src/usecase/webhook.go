@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/aldinokemal/go-whatsapp-web-multidevice/domains/webhook"
 	"github.com/aldinokemal/go-whatsapp-web-multidevice/validations"
@@ -17,6 +18,8 @@ func NewWebhookService(repo webhook.IWebhookRepository) webhook.IWebhookUsecase 
 }
 
 func (s *webhookService) CreateWebhook(request *webhook.CreateWebhookRequest) error {
+	request.URL = strings.TrimSpace(request.URL)
+	
 	if err := validations.ValidateCreateWebhook(request); err != nil {
 		logrus.Errorf("Validation error when creating webhook: %s", err.Error())
 		return err
@@ -50,6 +53,8 @@ func (s *webhookService) UpdateWebhook(id string, request *webhook.UpdateWebhook
 		return fmt.Errorf("webhook ID is required")
 	}
 
+	request.URL = strings.TrimSpace(request.URL)
+	
 	if err := validations.ValidateUpdateWebhook(request); err != nil {
 		logrus.Errorf("Validation error when updating webhook: %s", err.Error())
 		return err
@@ -87,4 +92,9 @@ func (s *webhookService) GetWebhooksByEvent(event string) ([]*webhook.Webhook, e
 
 func (s *webhookService) GetEnabledWebhooks() ([]*webhook.Webhook, error) {
 	return s.repo.FindEnabled()
+}
+
+func (s *webhookService) GetAvailableEvents() ([]string, error) {
+	logrus.Debugf("GetAvailableEvents called, returning %d events", len(webhook.ValidEvents))
+	return webhook.ValidEvents, nil
 }

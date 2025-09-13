@@ -61,6 +61,7 @@
         <app-logout @reload-devices="handleReloadDevice"></app-logout>
         <app-reconnect @reload-devices="handleReloadDevice"></app-reconnect>
         <app-login-with-code :connected="connected_devices"></app-login-with-code>
+        <webhook-manager></webhook-manager>
     </div>
 
     <div class="ui horizontal divider">
@@ -136,14 +137,6 @@
         <account-privacy></account-privacy>
         <account-contact></account-contact>
         <account-user-check></account-user-check>
-    </div>
-
-    <div class="ui horizontal divider">
-        Webhooks
-    </div>
-
-    <div class="ui three column doubling grid cards">
-        <webhook-manager></webhook-manager>
     </div>
 
     <div class="ui horizontal divider">
