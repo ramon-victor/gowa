@@ -300,13 +300,113 @@ export default {
                         
                         <div class="field">
                             <label>Events to Receive</label>
-                            <div class="ui six column grid">
-                                <div class="column" v-for="event in allEvents">
+                            <div class="ui pointing below label">
+                                Select the events you want to receive webhook notifications for
+                            </div>
+                            
+                            <!-- Event categories for better organization -->
+                            <div class="ui styled fluid accordion">
+                                <!-- Connection Events -->
+                                <div class="title active">
+                                    <i class="dropdown icon"></i>
+                                    <span class="ui blue text">Connection Events</span>
+                                    <span class="ui circular mini label blue">{{ getEventsByCategory('connection').length }}</span>
+                                </div>
+                                <div class="content active">
+                                    <div class="ui three column grid">
+                                        <div class="column" v-for="event in getEventsByCategory('connection')">
+                                            <div class="ui checkbox">
+                                                <input type="checkbox" :id="'event-' + event"
+                                                       :value="event" v-model="webhookForm.events">
+                                                <label :for="'event-' + event">{{ formatEventName(event) }}</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Message Events -->
+                                <div class="title">
+                                    <i class="dropdown icon"></i>
+                                    <span class="ui green text">Message Events</span>
+                                    <span class="ui circular mini label green">{{ getEventsByCategory('message').length }}</span>
+                                </div>
+                                <div class="content">
+                                    <div class="ui three column grid">
+                                        <div class="column" v-for="event in getEventsByCategory('message')">
+                                            <div class="ui checkbox">
+                                                <input type="checkbox" :id="'event-' + event"
+                                                       :value="event" v-model="webhookForm.events">
+                                                <label :for="'event-' + event">{{ formatEventName(event) }}</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Group Events -->
+                                <div class="title">
+                                    <i class="dropdown icon"></i>
+                                    <span class="ui purple text">Group Events</span>
+                                    <span class="ui circular mini label purple">{{ getEventsByCategory('group').length }}</span>
+                                </div>
+                                <div class="content">
+                                    <div class="ui three column grid">
+                                        <div class="column" v-for="event in getEventsByCategory('group')">
+                                            <div class="ui checkbox">
+                                                <input type="checkbox" :id="'event-' + event"
+                                                       :value="event" v-model="webhookForm.events">
+                                                <label :for="'event-' + event">{{ formatEventName(event) }}</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- User Events -->
+                                <div class="title">
+                                    <i class="dropdown icon"></i>
+                                    <span class="ui orange text">User Events</span>
+                                    <span class="ui circular mini label orange">{{ getEventsByCategory('user').length }}</span>
+                                </div>
+                                <div class="content">
+                                    <div class="ui three column grid">
+                                        <div class="column" v-for="event in getEventsByCategory('user')">
+                                            <div class="ui checkbox">
+                                                <input type="checkbox" :id="'event-' + event"
+                                                       :value="event" v-model="webhookForm.events">
+                                                <label :for="'event-' + event">{{ formatEventName(event) }}</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Other Events -->
+                                <div class="title">
+                                    <i class="dropdown icon"></i>
+                                    <span class="ui grey text">Other Events</span>
+                                    <span class="ui circular mini label grey">{{ getEventsByCategory('other').length }}</span>
+                                </div>
+                                <div class="content">
+                                    <div class="ui three column grid">
+                                        <div class="column" v-for="event in getEventsByCategory('other')">
                                     <div class="ui checkbox">
                                         <input type="checkbox" :id="'event-' + event"
                                                :value="event" v-model="webhookForm.events">
-                                        <label :for="'event-' + event">{{ event }}</label>
+                                                <label :for="'event-' + event">{{ formatEventName(event) }}</label>
+                                            </div>
+                                        </div>
                                     </div>
+                                </div>
+                            </div>
+
+                            <!-- Quick selection buttons -->
+                            <div class="ui horizontal divider">Quick Selection</div>
+                            <div class="ui buttons mini">
+                                <button class="ui button" @click="selectAllEvents">Select All</button>
+                                <button class="ui button" @click="deselectAllEvents">Deselect All</button>
+                            </div>
+                            <div class="ui horizontal list" style="margin-top: 0.5rem;">
+                                <div class="item">
+                                    <span class="ui green circular label">{{ webhookForm.events.length }}</span>
+                                    <span>events selected</span>
                                 </div>
                             </div>
                         </div>
