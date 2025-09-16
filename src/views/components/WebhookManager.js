@@ -7,6 +7,13 @@ export default {
             showAddForm: false,
             editingWebhookId: null,
             allEvents: [],
+            expandedCategories: {
+                connection: true,
+                message: false,
+                group: false,
+                user: false,
+                other: false
+            },
             webhookForm: {
                 url: '',
                 secret: '',
@@ -20,7 +27,7 @@ export default {
         async fetchAvailableEvents() {
             try {
                 const response = await window.http.get('/webhook/events')
-                this.allEvents = response.data.results
+                this.allEvents = response.data.results || []
             } catch (error) {
                 console.error('Failed to fetch available events:', error)
                 showErrorInfo('Failed to load available events')
@@ -39,7 +46,7 @@ export default {
         async fetchWebhooks() {
             try {
                 const response = await window.http.get('/webhook')
-                this.webhooks = response.data.results
+                this.webhooks = response.data.results || []
             } catch (error) {
                 console.error('Failed to fetch webhooks:', error)
                 showErrorInfo('Failed to load webhooks')
@@ -115,6 +122,14 @@ export default {
                 description: ''
             }
             this.editingWebhookId = null
+            // Reset expanded categories to default state
+            this.expandedCategories = {
+                connection: true,
+                message: false,
+                group: false,
+                user: false,
+                other: false
+            }
         },
 
         async updateApi() {
@@ -158,8 +173,21 @@ export default {
                     if (this.$refs.urlInput) {
                         this.$refs.urlInput.focus()
                     }
+                    this.initializeCheckboxes()
                 })
             }
+        },
+        toggleCategory(category) {
+            this.expandedCategories[category] = !this.expandedCategories[category]
+            if (this.expandedCategories[category]) {
+                this.initializeCheckboxes()
+            }
+        },
+        selectAllEvents() {
+            this.webhookForm.events = [...this.allEvents]
+        },
+        deselectAllEvents() {
+            this.webhookForm.events = []
         },
         async deleteWebhook(id) {
             if (!confirm('Are you sure you want to delete this webhook?')) {
@@ -189,6 +217,36 @@ export default {
                 showErrorInfo('Failed to update webhook status')
                 await this.fetchWebhooks()
             }
+        },
+        
+        getEventsByCategory(category) {
+            const eventCategories = {
+                connection: ['qr', 'pair.success', 'pair.error', 'qr.scanned.without.multidevice', 'connected', 'keepalive.timeout', 'keepalive.restored', 'logged.out', 'stream.replaced', 'manual.login.reconnect', 'temporary.ban', 'connect.failure', 'client.outdated', 'cat.refresh.error', 'stream.error', 'disconnected'],
+                message: ['message', 'message.ack', 'fb.message', 'undecryptable.message', 'history.sync', 'media.retry', 'receipt.delivered', 'receipt.read', 'receipt.read.self', 'receipt.played', 'message.delete', 'message.revoke'],
+                group: ['group', 'group.join', 'group.leave', 'group.promote', 'group.demote', 'group.info', 'group.picture'],
+                user: ['user.about', 'user.picture', 'identity.change', 'privacy.settings', 'presence', 'chat.presence'],
+                other: ['blocklist', 'newsletter.join', 'newsletter.leave', 'newsletter.mute.change', 'newsletter.live.update', 'offline.sync.preview', 'offline.sync.completed']
+            };
+            
+            return this.allEvents.filter(event => {
+                if (eventCategories[category]) {
+                    return eventCategories[category].includes(event);
+                }
+                return false;
+            });
+        },
+        
+        formatEventName(event) {
+            return event.split('.').map(word => 
+                word.charAt(0).toUpperCase() + word.slice(1)
+            ).join(' ');
+        },
+        
+        initializeCheckboxes() {
+            // Initialize Semantic UI checkboxes after DOM updates
+            this.$nextTick(() => {
+                $('.ui.checkbox').checkbox()
+            })
         }
     },
     template: `
@@ -305,92 +363,102 @@ export default {
                             </div>
                             
                             <!-- Event categories for better organization -->
-                            <div class="ui styled fluid accordion">
+                            <div class="ui segments">
                                 <!-- Connection Events -->
-                                <div class="title active">
-                                    <i class="dropdown icon"></i>
-                                    <span class="ui blue text">Connection Events</span>
-                                    <span class="ui circular mini label blue">{{ getEventsByCategory('connection').length }}</span>
-                                </div>
-                                <div class="content active">
-                                    <div class="ui three column grid">
-                                        <div class="column" v-for="event in getEventsByCategory('connection')">
-                                            <div class="ui checkbox">
+                                <div class="ui segment">
+                                    <div class="category-header" @click="toggleCategory('connection')" style="cursor: pointer; display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0;">
+                                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                            <i :class="['small icon', expandedCategories.connection ? 'caret down' : 'caret right']" style="margin: 0; font-size: 0.9em;"></i>
+                                            <span class="ui blue text" style="font-weight: 600; font-size: 1.1em;">Connection Events</span>
+                                        </div>
+                                        <span class="ui circular mini label blue">{{ getEventsByCategory('connection').length }}</span>
+                                    </div>
+                                    <div v-show="expandedCategories.connection" class="ui three column grid" style="margin-top: 0.75rem; padding-left: 1.5rem;">
+                                        <div class="column" v-for="event in getEventsByCategory('connection')" :key="event">
+                                            <div class="ui checkbox" style="margin-bottom: 0.5rem;">
                                                 <input type="checkbox" :id="'event-' + event"
                                                        :value="event" v-model="webhookForm.events">
-                                                <label :for="'event-' + event">{{ formatEventName(event) }}</label>
+                                                <label :for="'event-' + event" style="font-size: 0.9em;">{{ formatEventName(event) }}</label>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
 
                                 <!-- Message Events -->
-                                <div class="title">
-                                    <i class="dropdown icon"></i>
-                                    <span class="ui green text">Message Events</span>
-                                    <span class="ui circular mini label green">{{ getEventsByCategory('message').length }}</span>
-                                </div>
-                                <div class="content">
-                                    <div class="ui three column grid">
-                                        <div class="column" v-for="event in getEventsByCategory('message')">
-                                            <div class="ui checkbox">
+                                <div class="ui segment">
+                                    <div class="category-header" @click="toggleCategory('message')" style="cursor: pointer; display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0;">
+                                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                            <i :class="['small icon', expandedCategories.message ? 'caret down' : 'caret right']" style="margin: 0; font-size: 0.9em;"></i>
+                                            <span class="ui green text" style="font-weight: 600; font-size: 1.1em;">Message Events</span>
+                                        </div>
+                                        <span class="ui circular mini label green">{{ getEventsByCategory('message').length }}</span>
+                                    </div>
+                                    <div v-show="expandedCategories.message" class="ui three column grid" style="margin-top: 0.75rem; padding-left: 1.5rem;">
+                                        <div class="column" v-for="event in getEventsByCategory('message')" :key="event">
+                                            <div class="ui checkbox" style="margin-bottom: 0.5rem;">
                                                 <input type="checkbox" :id="'event-' + event"
                                                        :value="event" v-model="webhookForm.events">
-                                                <label :for="'event-' + event">{{ formatEventName(event) }}</label>
+                                                <label :for="'event-' + event" style="font-size: 0.9em;">{{ formatEventName(event) }}</label>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
 
                                 <!-- Group Events -->
-                                <div class="title">
-                                    <i class="dropdown icon"></i>
-                                    <span class="ui purple text">Group Events</span>
-                                    <span class="ui circular mini label purple">{{ getEventsByCategory('group').length }}</span>
-                                </div>
-                                <div class="content">
-                                    <div class="ui three column grid">
-                                        <div class="column" v-for="event in getEventsByCategory('group')">
-                                            <div class="ui checkbox">
+                                <div class="ui segment">
+                                    <div class="category-header" @click="toggleCategory('group')" style="cursor: pointer; display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0;">
+                                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                            <i :class="['small icon', expandedCategories.group ? 'caret down' : 'caret right']" style="margin: 0; font-size: 0.9em;"></i>
+                                            <span class="ui purple text" style="font-weight: 600; font-size: 1.1em;">Group Events</span>
+                                        </div>
+                                        <span class="ui circular mini label purple">{{ getEventsByCategory('group').length }}</span>
+                                    </div>
+                                    <div v-show="expandedCategories.group" class="ui three column grid" style="margin-top: 0.75rem; padding-left: 1.5rem;">
+                                        <div class="column" v-for="event in getEventsByCategory('group')" :key="event">
+                                            <div class="ui checkbox" style="margin-bottom: 0.5rem;">
                                                 <input type="checkbox" :id="'event-' + event"
                                                        :value="event" v-model="webhookForm.events">
-                                                <label :for="'event-' + event">{{ formatEventName(event) }}</label>
+                                                <label :for="'event-' + event" style="font-size: 0.9em;">{{ formatEventName(event) }}</label>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
 
                                 <!-- User Events -->
-                                <div class="title">
-                                    <i class="dropdown icon"></i>
-                                    <span class="ui orange text">User Events</span>
-                                    <span class="ui circular mini label orange">{{ getEventsByCategory('user').length }}</span>
-                                </div>
-                                <div class="content">
-                                    <div class="ui three column grid">
-                                        <div class="column" v-for="event in getEventsByCategory('user')">
-                                            <div class="ui checkbox">
+                                <div class="ui segment">
+                                    <div class="category-header" @click="toggleCategory('user')" style="cursor: pointer; display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0;">
+                                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                            <i :class="['small icon', expandedCategories.user ? 'caret down' : 'caret right']" style="margin: 0; font-size: 0.9em;"></i>
+                                            <span class="ui orange text" style="font-weight: 600; font-size: 1.1em;">User Events</span>
+                                        </div>
+                                        <span class="ui circular mini label orange">{{ getEventsByCategory('user').length }}</span>
+                                    </div>
+                                    <div v-show="expandedCategories.user" class="ui three column grid" style="margin-top: 0.75rem; padding-left: 1.5rem;">
+                                        <div class="column" v-for="event in getEventsByCategory('user')" :key="event">
+                                            <div class="ui checkbox" style="margin-bottom: 0.5rem;">
                                                 <input type="checkbox" :id="'event-' + event"
                                                        :value="event" v-model="webhookForm.events">
-                                                <label :for="'event-' + event">{{ formatEventName(event) }}</label>
+                                                <label :for="'event-' + event" style="font-size: 0.9em;">{{ formatEventName(event) }}</label>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
 
                                 <!-- Other Events -->
-                                <div class="title">
-                                    <i class="dropdown icon"></i>
-                                    <span class="ui grey text">Other Events</span>
-                                    <span class="ui circular mini label grey">{{ getEventsByCategory('other').length }}</span>
-                                </div>
-                                <div class="content">
-                                    <div class="ui three column grid">
-                                        <div class="column" v-for="event in getEventsByCategory('other')">
-                                    <div class="ui checkbox">
-                                        <input type="checkbox" :id="'event-' + event"
-                                               :value="event" v-model="webhookForm.events">
-                                                <label :for="'event-' + event">{{ formatEventName(event) }}</label>
+                                <div class="ui segment">
+                                    <div class="category-header" @click="toggleCategory('other')" style="cursor: pointer; display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0;">
+                                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                            <i :class="['small icon', expandedCategories.other ? 'caret down' : 'caret right']" style="margin: 0; font-size: 0.9em;"></i>
+                                            <span class="ui grey text" style="font-weight: 600; font-size: 1.1em;">Other Events</span>
+                                        </div>
+                                        <span class="ui circular mini label grey">{{ getEventsByCategory('other').length }}</span>
+                                    </div>
+                                    <div v-show="expandedCategories.other" class="ui three column grid" style="margin-top: 0.75rem; padding-left: 1.5rem;">
+                                        <div class="column" v-for="event in getEventsByCategory('other')" :key="event">
+                                            <div class="ui checkbox" style="margin-bottom: 0.5rem;">
+                                                <input type="checkbox" :id="'event-' + event"
+                                                       :value="event" v-model="webhookForm.events">
+                                                <label :for="'event-' + event" style="font-size: 0.9em;">{{ formatEventName(event) }}</label>
                                             </div>
                                         </div>
                                     </div>

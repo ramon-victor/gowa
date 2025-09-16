@@ -189,8 +189,8 @@ func (r *SQLiteRepository) Delete(id string) error {
 func (r *SQLiteRepository) FindByEvent(event string) ([]*webhook.Webhook, error) {
 	rows, err := r.db.Query(`
 		SELECT id, url, secret, events, enabled, description, created_at, updated_at 
-		FROM webhooks WHERE enabled = TRUE AND events LIKE ?
-	`, "%"+event+"%")
+		FROM webhooks WHERE enabled = TRUE
+	`)
 	if err != nil {
 		return nil, err
 	}

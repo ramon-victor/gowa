@@ -95,6 +95,5 @@ func (s *webhookService) GetEnabledWebhooks() ([]*webhook.Webhook, error) {
 }
 
 func (s *webhookService) GetAvailableEvents() ([]string, error) {
-	logrus.Debugf("GetAvailableEvents called, returning %d events", len(webhook.ValidEvents))
 	return webhook.ValidEvents, nil
 }
