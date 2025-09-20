@@ -25,7 +25,7 @@ var (
 	DBKeysURI = ""
 
 	WhatsappAutoReplyMessage       string
-	WhatsappAutoMarkRead           = false // Auto-mark incoming messages as read
+	WhatsappAutoMarkRead                 = false // Auto-mark incoming messages as read
 	WhatsappLogLevel                     = "ERROR"
 	WhatsappSettingMaxImageSize    int64 = 20000000  // 20MB
 	WhatsappSettingMaxFileSize     int64 = 50000000  // 50MB
@@ -38,4 +38,8 @@ var (
 	ChatStorageURI               = "file:storages/chatstorage.db"
 	ChatStorageEnableForeignKeys = true
 	ChatStorageEnableWAL         = true
+
+	WebhookURI               = ""
+	WebhookEnableForeignKeys = true
+	WebhookEnableWAL         = false
 )

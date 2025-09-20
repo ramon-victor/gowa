@@ -21,8 +21,8 @@ import (
 	domainUser "github.com/aldinokemal/go-whatsapp-web-multidevice/domains/user"
 	domainWebhook "github.com/aldinokemal/go-whatsapp-web-multidevice/domains/webhook"
 	"github.com/aldinokemal/go-whatsapp-web-multidevice/infrastructure/chatstorage"
-	"github.com/aldinokemal/go-whatsapp-web-multidevice/infrastructure/whatsapp"
 	webhookInfra "github.com/aldinokemal/go-whatsapp-web-multidevice/infrastructure/webhook"
+	"github.com/aldinokemal/go-whatsapp-web-multidevice/infrastructure/whatsapp"
 	"github.com/aldinokemal/go-whatsapp-web-multidevice/pkg/utils"
 	"github.com/aldinokemal/go-whatsapp-web-multidevice/usecase"
 	_ "github.com/lib/pq"
@@ -211,6 +211,52 @@ func initChatStorage() (*sql.DB, error) {
 	return db, nil
 }
 
+func initWebhookDB() (*sql.DB, error) {
+	dbURI := config.WebhookURI
+	if dbURI == "" {
+		dbURI = config.DBURI
+	}
+
+	var db *sql.DB
+	var err error
+
+	if strings.HasPrefix(dbURI, "postgres:") {
+		// PostgreSQL connection
+		db, err = sql.Open("postgres", dbURI)
+		if err != nil {
+			return nil, err
+		}
+	} else if strings.HasPrefix(dbURI, "file:") {
+		// SQLite connection
+		connStr := dbURI
+		if config.WebhookEnableForeignKeys {
+			connStr += "&_foreign_keys=on"
+		}
+		if config.WebhookEnableWAL {
+			connStr += "&_journal_mode=WAL"
+		}
+
+		db, err = sql.Open("sqlite3", connStr)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		return nil, fmt.Errorf("unsupported database URI: %s", dbURI)
+	}
+
+	// Configure connection pool
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(5)
+
+	// Test connection
+	if err := db.Ping(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to ping database: %w", err)
+	}
+
+	return db, nil
+}
+
 func initApp() {
 	if config.AppDebug {
 		config.WhatsappLogLevel = "DEBUG"
@@ -250,17 +296,29 @@ func initApp() {
 	messageUsecase = usecase.NewMessageService(chatStorageRepo)
 	groupUsecase = usecase.NewGroupService()
 	newsletterUsecase = usecase.NewNewsletterService()
-	
+
+	// Initialize webhook database
+	webhookDB, err := initWebhookDB()
+	if err != nil {
+		// Terminate the application if webhook database fails to initialize to avoid nil pointer panics later.
+		logrus.Fatalf("failed to initialize webhook database: %v", err)
+	}
+
 	// Webhook repository and usecase
-	webhookRepo := webhookInfra.NewSQLiteRepository(chatStorageDB)
+	var webhookRepo domainWebhook.IWebhookRepository
+	if strings.Contains(config.DBURI, "postgres:") {
+		webhookRepo = webhookInfra.NewPostgresRepository(webhookDB)
+	} else {
+		webhookRepo = webhookInfra.NewSQLiteRepository(webhookDB)
+	}
 	webhookUsecase = usecase.NewWebhookService(webhookRepo)
-	
+
 	err = webhookRepo.InitializeSchema()
 	if err != nil {
 		// Terminate the application if webhook schema initialization fails to avoid downstream issues
 		logrus.Fatalf("failed to initialize webhook schema: %v", err)
 	}
-	
+
 	// Initialize webhook service
 	whatsapp.InitWebhookService(webhookRepo)
 }
