@@ -38,8 +38,19 @@ export default {
             this.fetchAvailableEvents()
             this.showAddForm = false
             $('#modalWebhookManager').modal({
-                onApprove: function () {
-                    return false;
+                onApprove: () => {
+                    if (this.showAddForm) {
+                        this.handleSubmit();
+                        return false;
+                    }
+                    return true;
+                },
+                onDeny: () => {
+                    if (this.showAddForm) {
+                        this.toggleAddForm();
+                        return false;
+                    }
+                    return true;
                 }
             }).modal('show');
         },
@@ -122,7 +133,6 @@ export default {
                 description: ''
             }
             this.editingWebhookId = null
-            // Reset expanded categories to default state
             this.expandedCategories = {
                 connection: false,
                 message: false,
@@ -521,22 +531,21 @@ export default {
                                       rows="2" aria-label="Description"></textarea>
                         </div>
                         
-                        <div class="field">
-                            <button class="ui primary button" :class="{'loading': loading}"
-                                    @click="handleSubmit" type="button" :disabled="loading">
-                                {{ editingWebhookId ? 'Update Webhook' : 'Create Webhook' }}
-                            </button>
-                            <button class="ui button" @click="toggleAddForm" :disabled="loading">
-                                Cancel
-                            </button>
-                        </div>
                     </div>
                 </div>
             </transition>
         </div>
         <div class="actions">
-            <div class="ui black deny button">
+            <div v-if="!showAddForm" class="ui black deny button">
                 Close
+            </div>
+            <div v-else class="ui buttons" style="gap: 0.5rem;">
+                <button class="ui button deny" :disabled="loading">
+                    Cancel
+                </button>
+                <button class="ui primary approve button" :class="{'loading': loading}" :disabled="loading || !isValidForm()">
+                    {{ editingWebhookId ? 'Update Webhook' : 'Create Webhook' }}
+                </button>
             </div>
         </div>
     </div>
