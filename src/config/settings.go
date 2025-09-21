@@ -38,8 +38,6 @@ var (
 	ChatStorageURI               = "file:storages/chatstorage.db"
 	ChatStorageEnableForeignKeys = true
 	ChatStorageEnableWAL         = true
-
-	WebhookURI               = ""
 	WebhookEnableForeignKeys = true
-	WebhookEnableWAL         = false
+	WebhookEnableWAL         = true
 )

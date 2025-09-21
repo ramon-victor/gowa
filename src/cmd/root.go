@@ -21,7 +21,7 @@ import (
 	domainUser "github.com/aldinokemal/go-whatsapp-web-multidevice/domains/user"
 	domainWebhook "github.com/aldinokemal/go-whatsapp-web-multidevice/domains/webhook"
 	"github.com/aldinokemal/go-whatsapp-web-multidevice/infrastructure/chatstorage"
-	webhookInfra "github.com/aldinokemal/go-whatsapp-web-multidevice/infrastructure/webhook"
+	"github.com/aldinokemal/go-whatsapp-web-multidevice/infrastructure/webhook"
 	"github.com/aldinokemal/go-whatsapp-web-multidevice/infrastructure/whatsapp"
 	"github.com/aldinokemal/go-whatsapp-web-multidevice/pkg/utils"
 	"github.com/aldinokemal/go-whatsapp-web-multidevice/usecase"
@@ -211,37 +211,26 @@ func initChatStorage() (*sql.DB, error) {
 	return db, nil
 }
 
-func initWebhookDB() (*sql.DB, error) {
-	dbURI := config.WebhookURI
-	if dbURI == "" {
-		dbURI = config.DBURI
-	}
-
+func initWebhookDB() (*sql.DB, bool, error) {
+	isPostgres := strings.Contains(config.DBURI, "postgres:")
 	var db *sql.DB
 	var err error
 
-	if strings.HasPrefix(dbURI, "postgres:") {
-		// PostgreSQL connection
-		db, err = sql.Open("postgres", dbURI)
-		if err != nil {
-			return nil, err
-		}
-	} else if strings.HasPrefix(dbURI, "file:") {
-		// SQLite connection
-		connStr := dbURI
+	if isPostgres {
+		db, err = sql.Open("postgres", config.DBURI)
+	} else {
+		connStr := config.DBURI
 		if config.WebhookEnableForeignKeys {
 			connStr += "&_foreign_keys=on"
 		}
 		if config.WebhookEnableWAL {
 			connStr += "&_journal_mode=WAL"
 		}
-
 		db, err = sql.Open("sqlite3", connStr)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		return nil, fmt.Errorf("unsupported database URI: %s", dbURI)
+	}
+
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to create webhook database connection: %w", err)
 	}
 
 	// Configure connection pool
@@ -251,10 +240,10 @@ func initWebhookDB() (*sql.DB, error) {
 	// Test connection
 	if err := db.Ping(); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("failed to ping database: %w", err)
+		return nil, false, fmt.Errorf("failed to ping webhook database: %w", err)
 	}
 
-	return db, nil
+	return db, isPostgres, nil
 }
 
 func initApp() {
@@ -297,20 +286,13 @@ func initApp() {
 	groupUsecase = usecase.NewGroupService()
 	newsletterUsecase = usecase.NewNewsletterService()
 
-	// Initialize webhook database
-	webhookDB, err := initWebhookDB()
+	// Initialize webhook database and repository
+	webhookDB, isPostgres, err := initWebhookDB()
 	if err != nil {
-		// Terminate the application if webhook database fails to initialize to avoid nil pointer panics later.
 		logrus.Fatalf("failed to initialize webhook database: %v", err)
 	}
 
-	// Webhook repository and usecase
-	var webhookRepo domainWebhook.IWebhookRepository
-	if strings.Contains(config.DBURI, "postgres:") {
-		webhookRepo = webhookInfra.NewPostgresRepository(webhookDB)
-	} else {
-		webhookRepo = webhookInfra.NewSQLiteRepository(webhookDB)
-	}
+	webhookRepo := webhook.NewRepository(webhookDB, isPostgres)
 	webhookUsecase = usecase.NewWebhookService(webhookRepo)
 
 	err = webhookRepo.InitializeSchema()
