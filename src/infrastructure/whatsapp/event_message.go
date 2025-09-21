@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
 
 	"github.com/aldinokemal/go-whatsapp-web-multidevice/config"
@@ -23,17 +24,59 @@ func forwardMessageToWebhook(ctx context.Context, evt *events.Message) error {
 		return nil
 	}
 
+	// Check if this is a reaction message and handle separately
+	if evt.Message.GetReactionMessage() != nil {
+		return forwardReactionToWebhook(ctx, evt)
+	}
+
+	// Check if this is a protocol message (revoke, edit, etc.)
+	if protocolMessage := evt.Message.GetProtocolMessage(); protocolMessage != nil {
+		protocolType := protocolMessage.GetType().String()
+		if protocolType == "REVOKE" {
+			return forwardMessageRevokeToWebhook(ctx, evt, protocolMessage)
+		}
+	}
+
 	payload, err := createMessagePayload(ctx, evt)
 	if err != nil {
 		return err
 	}
 
-	return webhookService.SubmitWebhook(ctx, "message", payload)
+	return webhookService.SubmitWebhook(ctx, "message.received", payload)
+}
+
+// forwardReactionToWebhook forwards reaction events to webhook
+func forwardReactionToWebhook(ctx context.Context, evt *events.Message) error {
+	webhookService := GetWebhookService()
+	if webhookService == nil {
+		return nil
+	}
+
+	payload, err := createReactionPayload(ctx, evt)
+	if err != nil {
+		return err
+	}
+
+	return webhookService.SubmitWebhook(ctx, "message.reaction", payload)
+}
+
+// forwardMessageRevokeToWebhook forwards message revoke events to webhook
+func forwardMessageRevokeToWebhook(ctx context.Context, evt *events.Message, protocolMessage *waE2E.ProtocolMessage) error {
+	webhookService := GetWebhookService()
+	if webhookService == nil {
+		return nil
+	}
+
+	payload, err := createMessageRevokePayload(ctx, evt, protocolMessage)
+	if err != nil {
+		return err
+	}
+
+	return webhookService.SubmitWebhook(ctx, "message.revoke", payload)
 }
 
 func createMessagePayload(ctx context.Context, evt *events.Message) (map[string]any, error) {
 	message := utils.BuildEventMessage(evt)
-	waReaction := utils.BuildEventReaction(evt)
 	forwarded := utils.BuildForwarded(evt)
 
 	body := make(map[string]any)
@@ -95,9 +138,6 @@ func createMessagePayload(ctx context.Context, evt *events.Message) (map[string]
 	if pushname := evt.Info.PushName; pushname != "" {
 		body["pushname"] = pushname
 	}
-	if waReaction.Message != "" {
-		body["reaction"] = waReaction
-	}
 	if evt.IsViewOnce {
 		body["view_once"] = evt.IsViewOnce
 	}
@@ -108,21 +148,11 @@ func createMessagePayload(ctx context.Context, evt *events.Message) (map[string]
 		body["timestamp"] = timestamp
 	}
 
-	// Handle protocol messages (revoke, etc.)
+	// Handle only MESSAGE_EDIT protocol messages (REVOKE is handled separately)
 	if protocolMessage := evt.Message.GetProtocolMessage(); protocolMessage != nil {
 		protocolType := protocolMessage.GetType().String()
 
-		switch protocolType {
-		case "REVOKE":
-			body["action"] = "message_revoked"
-			if key := protocolMessage.GetKey(); key != nil {
-				body["revoked_message_id"] = key.GetID()
-				body["revoked_from_me"] = key.GetFromMe()
-				if key.GetRemoteJID() != "" {
-					body["revoked_chat"] = key.GetRemoteJID()
-				}
-			}
-		case "MESSAGE_EDIT":
+		if protocolType == "MESSAGE_EDIT" {
 			body["action"] = "message_edited"
 			if editedMessage := protocolMessage.GetEditedMessage(); editedMessage != nil {
 				if editedText := editedMessage.GetExtendedTextMessage(); editedText != nil {
@@ -198,6 +228,71 @@ func createMessagePayload(ctx context.Context, evt *events.Message) (map[string]
 		}
 		body["video"] = path
 	}
+
+	return body, nil
+}
+
+// createReactionPayload creates a webhook payload for reaction events
+func createReactionPayload(ctx context.Context, evt *events.Message) (map[string]any, error) {
+	body := make(map[string]any)
+
+	// Basic message information
+	body["sender_id"] = evt.Info.Sender.User
+	body["chat_id"] = evt.Info.Chat.User
+
+	if from := evt.Info.SourceString(); from != "" {
+		body["from"] = from
+	}
+
+	if pushname := evt.Info.PushName; pushname != "" {
+		body["pushname"] = pushname
+	}
+
+	if timestamp := evt.Info.Timestamp.Format(time.RFC3339); timestamp != "" {
+		body["timestamp"] = timestamp
+	}
+
+	// Reaction specific information
+	if reactionMessage := evt.Message.GetReactionMessage(); reactionMessage != nil {
+		body["reaction_text"] = reactionMessage.GetText()
+		body["reaction_message_id"] = reactionMessage.GetKey().GetID()
+		body["reaction_sender"] = reactionMessage.GetKey().GetRemoteJID()
+		body["reaction_from_me"] = reactionMessage.GetKey().GetFromMe()
+	}
+
+	return body, nil
+}
+
+// createMessageRevokePayload creates a webhook payload for message revoke events
+func createMessageRevokePayload(ctx context.Context, evt *events.Message, protocolMessage *waE2E.ProtocolMessage) (map[string]any, error) {
+	body := make(map[string]any)
+
+	// Basic message information
+	body["sender_id"] = evt.Info.Sender.User
+	body["chat_id"] = evt.Info.Chat.User
+
+	if from := evt.Info.SourceString(); from != "" {
+		body["from"] = from
+	}
+
+	if pushname := evt.Info.PushName; pushname != "" {
+		body["pushname"] = pushname
+	}
+
+	if timestamp := evt.Info.Timestamp.Format(time.RFC3339); timestamp != "" {
+		body["timestamp"] = timestamp
+	}
+
+	// Revoke specific information
+	if key := protocolMessage.GetKey(); key != nil {
+		body["revoked_message_id"] = key.GetID()
+		body["revoked_from_me"] = key.GetFromMe()
+		if key.GetRemoteJID() != "" {
+			body["revoked_chat"] = key.GetRemoteJID()
+		}
+	}
+
+	body["action"] = "message_revoked"
 
 	return body, nil
 }

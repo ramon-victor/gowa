@@ -8,7 +8,7 @@ export default {
             editingWebhookId: null,
             allEvents: [],
             expandedCategories: {
-                connection: true,
+                connection: false,
                 message: false,
                 group: false,
                 user: false,
@@ -124,7 +124,7 @@ export default {
             this.editingWebhookId = null
             // Reset expanded categories to default state
             this.expandedCategories = {
-                connection: true,
+                connection: false,
                 message: false,
                 group: false,
                 user: false,
@@ -166,8 +166,8 @@ export default {
 
         toggleAddForm() {
             this.showAddForm = !this.showAddForm
+            this.handleReset()
             if (!this.showAddForm) {
-                this.handleReset()
             } else {
                 this.$nextTick(() => {
                     if (this.$refs.urlInput) {
@@ -220,19 +220,54 @@ export default {
         },
         
         getEventsByCategory(category) {
-            const eventCategories = {
-                connection: ['qr', 'pair.success', 'pair.error', 'qr.scanned.without.multidevice', 'connected', 'keepalive.timeout', 'keepalive.restored', 'logged.out', 'stream.replaced', 'manual.login.reconnect', 'temporary.ban', 'connect.failure', 'client.outdated', 'cat.refresh.error', 'stream.error', 'disconnected'],
-                message: ['message', 'message.ack', 'fb.message', 'undecryptable.message', 'history.sync', 'media.retry', 'receipt.delivered', 'receipt.read', 'receipt.read.self', 'receipt.played', 'message.delete', 'message.revoke'],
-                group: ['group', 'group.join', 'group.leave', 'group.promote', 'group.demote', 'group.info', 'group.picture'],
-                user: ['user.about', 'user.picture', 'identity.change', 'privacy.settings', 'presence', 'chat.presence'],
-                other: ['blocklist', 'newsletter.join', 'newsletter.leave', 'newsletter.mute.change', 'newsletter.live.update', 'offline.sync.preview', 'offline.sync.completed']
-            };
-            
             return this.allEvents.filter(event => {
-                if (eventCategories[category]) {
-                    return eventCategories[category].includes(event);
+                switch (category) {
+                    case 'connection':
+                        return event.startsWith('qr') ||
+                               event.startsWith('pair') ||
+                               event === 'connected' ||
+                               event.startsWith('keepalive') ||
+                               event.startsWith('logged') ||
+                               event.startsWith('stream') ||
+                               event.startsWith('manual') ||
+                               event.startsWith('temporary') ||
+                               event.startsWith('connect') ||
+                               event.startsWith('client') ||
+                               event.startsWith('cat') ||
+                               event === 'disconnected';
+                    case 'message':
+                        return event.startsWith('message') ||
+                               event === 'receipt' ||
+                               event === 'media.retry';
+                    case 'group':
+                        return event.startsWith('group') || event === 'joined.group';
+                    case 'user':
+                        return event.startsWith('user') ||
+                               event.startsWith('push') ||
+                               event.startsWith('business') ||
+                               event === 'picture' ||
+                               event.startsWith('identity') ||
+                               event.startsWith('privacy') ||
+                               event.startsWith('presence') ||
+                               event.startsWith('chat.presence') ||
+                               event === 'blocklist' ||
+                               event === 'unarchive.chats.setting';
+                    case 'other':
+                        return event.startsWith('call') ||
+                               event.startsWith('app') ||
+                               event.startsWith('archive') ||
+                               event.startsWith('clear') ||
+                               event.startsWith('delete') ||
+                               event.startsWith('mark') ||
+                               event === 'pin' ||
+                               event === 'star' ||
+                               event === 'mute' ||
+                               event.startsWith('label') ||
+                               event.startsWith('newsletter') ||
+                               event.startsWith('offline');
+                    default:
+                        return false;
                 }
-                return false;
             });
         },
         
@@ -288,9 +323,8 @@ export default {
                                     </div>
                                     <div>
                                         <div class="event-cards">
-                                            <div v-for="event in allEvents" :key="event"
-                                                 class="event-card"
-                                                 :class="{'active-event': webhook.events.includes(event), 'inactive-event': !webhook.events.includes(event)}">
+                                            <div v-for="event in webhook.events" :key="event"
+                                                 class="event-card active-event">
                                                 {{ event }}
                                             </div>
                                         </div>

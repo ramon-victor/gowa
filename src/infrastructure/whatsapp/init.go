@@ -364,12 +364,26 @@ func handler(ctx context.Context, rawEvt any, chatStorageRepo domainChatStorage.
 		handleReceipt(ctx, evt)
 	case *events.Presence:
 		handlePresence(ctx, evt)
+	case *events.ChatPresence:
+		handleChatPresence(ctx, evt)
 	case *events.HistorySync:
 		handleHistorySync(ctx, evt, chatStorageRepo)
 	case *events.AppState:
 		handleAppState(ctx, evt)
 	case *events.GroupInfo:
 		handleGroupInfo(ctx, evt)
+	case *events.NewsletterJoin:
+		handleNewsletterJoin(ctx, evt)
+	case *events.NewsletterLeave:
+		handleNewsletterLeave(ctx, evt)
+	case *events.NewsletterMuteChange:
+		handleNewsletterMuteChange(ctx, evt)
+	case *events.NewsletterLiveUpdate:
+		handleNewsletterLiveUpdate(ctx, evt)
+	case *events.OfflineSyncPreview:
+		handleOfflineSyncPreview(ctx, evt)
+	case *events.OfflineSyncCompleted:
+		handleOfflineSyncCompleted(ctx, evt)
 	}
 }
 
@@ -960,6 +974,106 @@ func handleGroupInfo(ctx context.Context, evt *events.GroupInfo) {
 	go func(e *events.GroupInfo) {
 		if err := forwardGroupInfoToWebhook(ctx, e); err != nil {
 			logrus.Errorf("Failed to forward group info event to webhook: %v", err)
+		}
+	}(evt)
+}
+
+// Newsletter event handlers
+
+func handleNewsletterJoin(ctx context.Context, evt *events.NewsletterJoin) {
+	log.Infof("Newsletter join: %s joined newsletter %s",
+		cli.Store.ID.String(), evt.ID.String())
+
+	// Forward newsletter join event to webhook
+	go func(e *events.NewsletterJoin) {
+		if err := forwardNewsletterJoinToWebhook(ctx, e); err != nil {
+			logrus.Errorf("Failed to forward newsletter join event to webhook: %v", err)
+		}
+	}(evt)
+}
+
+func handleNewsletterLeave(ctx context.Context, evt *events.NewsletterLeave) {
+	log.Infof("Newsletter leave: %s left newsletter %s (role: %s)",
+		cli.Store.ID.String(), evt.ID.String(), evt.Role)
+
+	// Forward newsletter leave event to webhook
+	go func(e *events.NewsletterLeave) {
+		if err := forwardNewsletterLeaveToWebhook(ctx, e); err != nil {
+			logrus.Errorf("Failed to forward newsletter leave event to webhook: %v", err)
+		}
+	}(evt)
+}
+
+func handleNewsletterMuteChange(ctx context.Context, evt *events.NewsletterMuteChange) {
+	log.Infof("Newsletter mute change: %s changed mute status to %s for newsletter %s",
+		cli.Store.ID.String(), evt.Mute, evt.ID.String())
+
+	// Forward newsletter mute change event to webhook
+	go func(e *events.NewsletterMuteChange) {
+		if err := forwardNewsletterMuteChangeToWebhook(ctx, e); err != nil {
+			logrus.Errorf("Failed to forward newsletter mute change event to webhook: %v", err)
+		}
+	}(evt)
+}
+
+func handleNewsletterLiveUpdate(ctx context.Context, evt *events.NewsletterLiveUpdate) {
+	log.Infof("Newsletter live update: received %d messages for newsletter %s",
+		len(evt.Messages), evt.JID.String())
+
+	// Forward newsletter live update event to webhook
+	go func(e *events.NewsletterLiveUpdate) {
+		if err := forwardNewsletterLiveUpdateToWebhook(ctx, e); err != nil {
+			logrus.Errorf("Failed to forward newsletter live update event to webhook: %v", err)
+		}
+	}(evt)
+}
+
+// Chat presence handler for typing indicators
+func handleChatPresence(ctx context.Context, evt *events.ChatPresence) {
+	state := "unknown"
+	if evt.State == types.ChatPresenceComposing {
+		state = "composing"
+	} else if evt.State == types.ChatPresencePaused {
+		state = "paused"
+	}
+
+	mediaType := "text"
+	if evt.Media == types.ChatPresenceMediaAudio {
+		mediaType = "audio"
+	}
+
+	log.Infof("Chat presence: %s is %s (%s) in chat %s",
+		evt.Sender.String(), state, mediaType, evt.Chat.String())
+
+	// Forward chat presence event to webhook
+	go func(e *events.ChatPresence) {
+		if err := forwardChatPresenceToWebhook(ctx, e); err != nil {
+			logrus.Errorf("Failed to forward chat presence event to webhook: %v", err)
+		}
+	}(evt)
+}
+
+// Offline sync event handlers
+
+func handleOfflineSyncPreview(ctx context.Context, evt *events.OfflineSyncPreview) {
+	log.Infof("Offline sync preview: %d total events (%d app data changes, %d messages, %d notifications, %d receipts)",
+		evt.Total, evt.AppDataChanges, evt.Messages, evt.Notifications, evt.Receipts)
+
+	// Forward offline sync preview event to webhook
+	go func(e *events.OfflineSyncPreview) {
+		if err := forwardOfflineSyncPreviewToWebhook(ctx, e); err != nil {
+			logrus.Errorf("Failed to forward offline sync preview event to webhook: %v", err)
+		}
+	}(evt)
+}
+
+func handleOfflineSyncCompleted(ctx context.Context, evt *events.OfflineSyncCompleted) {
+	log.Infof("Offline sync completed: %d events synchronized", evt.Count)
+
+	// Forward offline sync completed event to webhook
+	go func(e *events.OfflineSyncCompleted) {
+		if err := forwardOfflineSyncCompletedToWebhook(ctx, e); err != nil {
+			logrus.Errorf("Failed to forward offline sync completed event to webhook: %v", err)
 		}
 	}(evt)
 }
