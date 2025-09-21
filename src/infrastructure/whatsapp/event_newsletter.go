@@ -73,7 +73,7 @@ func createNewsletterMuteChangePayload(evt *events.NewsletterMuteChange) map[str
 	body["payload"] = payload
 
 	// Add metadata for webhook processing
-	body["event"] = "newsletter.mute_change"
+	body["event"] = "newsletter.mute.change"
 	body["timestamp"] = time.Now().Format(time.RFC3339)
 
 	return body
@@ -111,7 +111,7 @@ func createNewsletterLiveUpdatePayload(evt *events.NewsletterLiveUpdate) map[str
 	body["payload"] = payload
 
 	// Add metadata for webhook processing
-	body["event"] = "newsletter.live_update"
+	body["event"] = "newsletter.live.update"
 	body["timestamp"] = time.Now().Format(time.RFC3339)
 
 	return body
@@ -163,7 +163,7 @@ func forwardNewsletterMuteChangeToWebhook(ctx context.Context, evt *events.Newsl
 	payload := createNewsletterMuteChangePayload(evt)
 
 	// Use webhook service to submit the event
-	if err := webhookService.SubmitWebhook(ctx, "newsletter.mute_change", payload); err != nil {
+	if err := webhookService.SubmitWebhook(ctx, "newsletter.mute.change", payload); err != nil {
 		return fmt.Errorf("submit newsletter mute change webhook failed: %w", err)
 	}
 
@@ -181,7 +181,7 @@ func forwardNewsletterLiveUpdateToWebhook(ctx context.Context, evt *events.Newsl
 	payload := createNewsletterLiveUpdatePayload(evt)
 
 	// Use webhook service to submit the event
-	if err := webhookService.SubmitWebhook(ctx, "newsletter.live_update", payload); err != nil {
+	if err := webhookService.SubmitWebhook(ctx, "newsletter.live.update", payload); err != nil {
 		return fmt.Errorf("submit newsletter live update webhook failed: %w", err)
 	}
 
