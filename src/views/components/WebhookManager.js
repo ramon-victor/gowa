@@ -392,11 +392,11 @@ export default {
                         
                         <div class="field">
                             <label>Secret Key (optional)</label>
-                            <input v-model="webhookForm.secret" type="text"
+                            <input v-model="webhookForm.secret" type="password"
                                    placeholder="Secret for HMAC signature"
                                    aria-label="Secret Key">
                             <div class="ui pointing label">
-                                Leave empty to use default secret
+                                Leave empty to use default secret — value is masked
                             </div>
                         </div>
                         
