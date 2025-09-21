@@ -8,7 +8,6 @@ import (
 	"github.com/aldinokemal/go-whatsapp-web-multidevice/domains/webhook"
 	pkgError "github.com/aldinokemal/go-whatsapp-web-multidevice/pkg/error"
 	validation "github.com/go-ozzo/ozzo-validation/v4"
-	"github.com/go-ozzo/ozzo-validation/v4/is"
 )
 
 func ValidateCreateWebhook(request *webhook.CreateWebhookRequest) error {
@@ -38,11 +37,9 @@ func ValidateUpdateWebhook(request *webhook.UpdateWebhookRequest) error {
 func validateWebhookCommon(url, secret string, events []string, description string) error {
 	validEvents := strings.Join(webhook.ValidEvents, ", ")
 
-	// Validate URL
 	if err := validation.Validate(url,
 		validation.Required,
 		validation.By(validateWebhookURL),
-		is.URL,
 	); err != nil {
 		return err
 	}

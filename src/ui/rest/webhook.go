@@ -14,6 +14,7 @@ func InitRestWebhook(app fiber.Router, service webhook.IWebhookUsecase) Webhook 
 	handler := Webhook{Service: service}
 	
 	app.Get("/webhook", handler.GetAllWebhooks)
+	app.Get("/webhook/events", handler.GetAvailableEvents)
 	app.Get("/webhook/:id", handler.GetWebhook)
 	app.Post("/webhook", handler.CreateWebhook)
 	app.Put("/webhook/:id", handler.UpdateWebhook)
@@ -34,7 +35,14 @@ func (h *Webhook) CreateWebhook(c *fiber.Ctx) error {
 	}
 	
 	err := h.Service.CreateWebhook(&request)
-	utils.PanicIfNeeded(err)
+	if err != nil {
+		return c.Status(400).JSON(utils.ResponseData{
+			Status:  400,
+			Code:    "VALIDATION_ERROR",
+			Message: err.Error(),
+			Results: nil,
+		})
+	}
 	
 	return c.JSON(utils.ResponseData{
 		Status:  201,
@@ -84,13 +92,32 @@ func (h *Webhook) UpdateWebhook(c *fiber.Ctx) error {
 	}
 	
 	err := h.Service.UpdateWebhook(id, &request)
-	utils.PanicIfNeeded(err)
+	if err != nil {
+		return c.Status(400).JSON(utils.ResponseData{
+			Status:  400,
+			Code:    "VALIDATION_ERROR",
+			Message: err.Error(),
+			Results: nil,
+		})
+	}
 	
 	return c.JSON(utils.ResponseData{
 		Status:  200,
 		Code:    "SUCCESS",
 		Message: "Webhook updated successfully",
 		Results: nil,
+	})
+}
+
+func (h *Webhook) GetAvailableEvents(c *fiber.Ctx) error {
+	events, err := h.Service.GetAvailableEvents()
+	utils.PanicIfNeeded(err)
+
+	return c.JSON(utils.ResponseData{
+		Status:  200,
+		Code:    "SUCCESS",
+		Message: "Available events retrieved successfully",
+		Results: events,
 	})
 }
 

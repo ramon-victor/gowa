@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -59,10 +60,11 @@ func (s *WebhookService) SubmitWebhook(ctx context.Context, event string, payloa
 		}
 		enabledCount++
 
-		err := s.submitWebhook(ctx, payload, wh.URL, wh.Secret)
+		trimmedURL := strings.TrimSpace(wh.URL)
+		err := s.submitWebhook(ctx, payload, trimmedURL, wh.Secret)
 		if err != nil {
 			errors = append(errors, err)
-			logrus.Warnf("Failed to submit webhook to %s: %v", wh.URL, err)
+			logrus.Warnf("Failed to submit webhook to %s: %v", trimmedURL, err)
 		}
 	}
 

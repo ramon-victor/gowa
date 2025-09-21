@@ -21,8 +21,8 @@ import (
 	domainUser "github.com/aldinokemal/go-whatsapp-web-multidevice/domains/user"
 	domainWebhook "github.com/aldinokemal/go-whatsapp-web-multidevice/domains/webhook"
 	"github.com/aldinokemal/go-whatsapp-web-multidevice/infrastructure/chatstorage"
+	"github.com/aldinokemal/go-whatsapp-web-multidevice/infrastructure/webhook"
 	"github.com/aldinokemal/go-whatsapp-web-multidevice/infrastructure/whatsapp"
-	webhookInfra "github.com/aldinokemal/go-whatsapp-web-multidevice/infrastructure/webhook"
 	"github.com/aldinokemal/go-whatsapp-web-multidevice/pkg/utils"
 	"github.com/aldinokemal/go-whatsapp-web-multidevice/usecase"
 	_ "github.com/lib/pq"
@@ -71,14 +71,14 @@ func init() {
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
 
 	// Initialize flags first, before any subcommands are added
-	initFlags()
+	initCommandFlags()
 
 	// Then initialize other components
-	cobra.OnInitialize(initEnvConfig, initApp)
+	cobra.OnInitialize(initConfigFromEnv, initApp)
 }
 
 // initEnvConfig loads configuration from environment variables
-func initEnvConfig() {
+func initConfigFromEnv() {
 	fmt.Println(viper.AllSettings())
 	// Application settings
 	if envPort := viper.GetString("app_port"); envPort != "" {
@@ -118,7 +118,7 @@ func initEnvConfig() {
 	}
 }
 
-func initFlags() {
+func initCommandFlags() {
 	// Application flags
 	rootCmd.PersistentFlags().StringVarP(
 		&config.AppPort,
@@ -187,62 +187,154 @@ func initFlags() {
 	)
 }
 
-func initChatStorage() (*sql.DB, error) {
+func initChatStorageDB() (*sql.DB, error) {
 	connStr := fmt.Sprintf("%s?_journal_mode=WAL", config.ChatStorageURI)
 	if config.ChatStorageEnableForeignKeys {
 		connStr += "&_foreign_keys=on"
 	}
 
+	logrus.Debugf("Opening chat storage database with connection string: %s", connStr)
 	db, err := sql.Open("sqlite3", connStr)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to open chat storage database: %w", err)
 	}
 
 	// Configure connection pool
 	db.SetMaxOpenConns(25)
 	db.SetMaxIdleConns(5)
+	logrus.Debugf("Chat storage connection pool configured: maxOpen=%d, maxIdle=%d", 25, 5)
 
 	// Test connection
 	if err := db.Ping(); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("failed to ping database: %w", err)
+		return nil, fmt.Errorf("failed to ping chat storage database: %w", err)
 	}
 
+	logrus.Debugln("Chat storage database connection established successfully")
 	return db, nil
 }
 
-func initApp() {
+func initWebhookDB() (*sql.DB, bool, error) {
+	isPostgres := strings.Contains(config.DBURI, "postgres:")
+	var db *sql.DB
+	var err error
+
+	logrus.Debugf("Initializing webhook database connection (PostgreSQL: %v)", isPostgres)
+
+	if isPostgres {
+		logrus.Debugf("Opening PostgreSQL connection with URI: %s", config.DBURI)
+		db, err = sql.Open("postgres", config.DBURI)
+	} else {
+		connStr := config.DBURI
+		if config.WebhookEnableForeignKeys {
+			connStr += "&_foreign_keys=on"
+			logrus.Debug("Foreign keys enabled for webhook database")
+		}
+		if config.WebhookEnableWAL {
+			connStr += "&_journal_mode=WAL"
+			logrus.Debug("WAL journal mode enabled for webhook database")
+		}
+		logrus.Debugf("Opening SQLite connection with string: %s", connStr)
+		db, err = sql.Open("sqlite3", connStr)
+	}
+
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to create webhook database connection: %w", err)
+	}
+
+	// Configure connection pool
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(5)
+	logrus.Debugf("Webhook database connection pool configured: maxOpen=%d, maxIdle=%d", 25, 5)
+
+	// Test connection
+	if err := db.Ping(); err != nil {
+		db.Close()
+		return nil, false, fmt.Errorf("failed to ping webhook database: %w", err)
+	}
+
+	logrus.Debugln("Webhook database connection established successfully")
+	return db, isPostgres, nil
+}
+
+// setupLogging configures logging based on debug mode
+func initLogging() {
 	if config.AppDebug {
 		config.WhatsappLogLevel = "DEBUG"
 		logrus.SetLevel(logrus.DebugLevel)
+		logrus.Debugln("Debug logging enabled")
+	} else {
+		logrus.SetLevel(logrus.InfoLevel)
+		logrus.Infoln("Info level logging enabled")
 	}
+}
 
-	//preparing folder if not exist
-	err := utils.CreateFolder(config.PathQrCode, config.PathSendItems, config.PathStorages, config.PathMedia)
+// createRequiredFolders creates all necessary folders for the application
+func initDirectories() error {
+	folders := []string{config.PathQrCode, config.PathSendItems, config.PathStorages, config.PathMedia}
+	logrus.Debugf("Creating required folders: %v", folders)
+	
+	err := utils.CreateFolder(folders...)
 	if err != nil {
-		logrus.Errorln(err)
+		return fmt.Errorf("failed to create required folders: %w", err)
 	}
+	
+	logrus.Infof("Successfully created required folders: %v", folders)
+	return nil
+}
 
-	ctx := context.Background()
-
-	chatStorageDB, err = initChatStorage()
+// initializeChatStorage initializes the chat storage database and repository
+func initChatStorage() error {
+	var err error
+	logrus.Info("Initializing chat storage...")
+	
+	chatStorageDB, err = initChatStorageDB()
 	if err != nil {
-		// Terminate the application if chat storage fails to initialize to avoid nil pointer panics later.
-		logrus.Fatalf("failed to initialize chat storage: %v", err)
+		return fmt.Errorf("failed to initialize chat storage: %w", err)
 	}
 
 	chatStorageRepo = chatstorage.NewStorageRepository(chatStorageDB)
-	chatStorageRepo.InitializeSchema()
+	err = chatStorageRepo.InitializeSchema()
+	if err != nil {
+		return fmt.Errorf("failed to initialize chat storage schema: %w", err)
+	}
 
+	logrus.Info("Chat storage initialized successfully")
+	return nil
+}
+
+// initializeWhatsAppDatabases initializes WhatsApp databases (main and keys)
+func initWhatsAppDBs(ctx context.Context) (*sqlstore.Container, *sqlstore.Container, error) {
+	logrus.Info("Initializing WhatsApp databases...")
+	
 	whatsappDB := whatsapp.InitWaDB(ctx, config.DBURI)
+	logrus.Debugf("Main WhatsApp database initialized with URI: %s", config.DBURI)
+	
 	var keysDB *sqlstore.Container
 	if config.DBKeysURI != "" {
 		keysDB = whatsapp.InitWaDB(ctx, config.DBKeysURI)
+		logrus.Infof("WhatsApp keys database initialized with URI: %s", config.DBKeysURI)
+	} else {
+		logrus.Info("Using main database for WhatsApp keys (no separate keys URI specified)")
 	}
 
-	whatsapp.InitWaCLI(ctx, whatsappDB, keysDB, chatStorageRepo)
+	logrus.Info("WhatsApp databases initialized successfully")
+	return whatsappDB, keysDB, nil
+}
 
-	// Usecase
+// initializeWhatsAppClient initializes the WhatsApp client
+func initWhatsAppClient(ctx context.Context, whatsappDB, keysDB *sqlstore.Container) error {
+	logrus.Info("Initializing WhatsApp client...")
+	
+	whatsapp.InitWaCLI(ctx, whatsappDB, keysDB, chatStorageRepo)
+	logrus.Info("WhatsApp client initialized successfully")
+	return nil
+}
+
+// initializeUsecases initializes all application usecases
+func initUsecases() {
+	logrus.Info("Initializing application usecases...")
+	
 	appUsecase = usecase.NewAppService(chatStorageRepo)
 	chatUsecase = usecase.NewChatService(chatStorageRepo)
 	sendUsecase = usecase.NewSendService(appUsecase, chatStorageRepo)
@@ -251,18 +343,66 @@ func initApp() {
 	groupUsecase = usecase.NewGroupService()
 	newsletterUsecase = usecase.NewNewsletterService()
 	
-	// Webhook repository and usecase
-	webhookRepo := webhookInfra.NewSQLiteRepository(chatStorageDB)
-	webhookUsecase = usecase.NewWebhookService(webhookRepo)
+	logrus.Info("All usecases initialized successfully")
+	logrus.Debugf("Usecases initialized: app, chat, send, user, message, group, newsletter")
+}
+
+// initializeWebhookSystem initializes the webhook database, repository, and service
+func initWebhook() error {
+	logrus.Info("Initializing webhook system...")
 	
+	webhookDB, isPostgres, err := initWebhookDB()
+	if err != nil {
+		return fmt.Errorf("failed to initialize webhook database: %w", err)
+	}
+
+	webhookRepo := webhook.NewRepository(webhookDB, isPostgres)
+	webhookUsecase = usecase.NewWebhookService(webhookRepo)
+
 	err = webhookRepo.InitializeSchema()
 	if err != nil {
-		// Terminate the application if webhook schema initialization fails to avoid downstream issues
-		logrus.Fatalf("failed to initialize webhook schema: %v", err)
+		return fmt.Errorf("failed to initialize webhook schema: %w", err)
 	}
-	
-	// Initialize webhook service
+
 	whatsapp.InitWebhookService(webhookRepo)
+	logrus.Info("Webhook system initialized successfully")
+	logrus.Debugf("Webhook database type: %s", map[bool]string{true: "PostgreSQL", false: "SQLite"}[isPostgres])
+	return nil
+}
+
+func initApp() {
+	logrus.Info("Starting application initialization...")
+
+	ctx := context.Background()
+	
+	initLogging()
+
+	if err := initDirectories(); err != nil {
+		logrus.Warnf("Folder creation warning: %v (application may continue)", err)
+	}
+
+	if err := initChatStorage(); err != nil {
+		logrus.Fatalf("Fatal error: failed to initialize chat storage: %v", err)
+	}
+
+	whatsappDB, keysDB, err := initWhatsAppDBs(ctx)
+	if err != nil {
+		logrus.Fatalf("Fatal error: failed to initialize WhatsApp databases: %v", err)
+	}
+
+	if err := initWhatsAppClient(ctx, whatsappDB, keysDB); err != nil {
+		logrus.Fatalf("Fatal error: failed to initialize WhatsApp client: %v", err)
+	}
+
+	if err := initWebhook(); err != nil {
+		logrus.Fatalf("Fatal error: failed to initialize webhook system: %v", err)
+	}
+
+	initUsecases()
+
+	logrus.Infoln("✅ Application initialized successfully")
+	logrus.Infof("📊 Configuration: Debug=%v, Port=%s, BasePath=%s",
+		config.AppDebug, config.AppPort, config.AppBasePath)
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
