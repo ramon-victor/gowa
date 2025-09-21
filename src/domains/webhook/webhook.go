@@ -54,7 +54,7 @@ var ValidEvents = []string{
 	"message.received",
 	"message.ack",
 	"media.retry",
-	"receipt", // Unified receipt event (replaces receipt.delivered, receipt.read, etc.)
+	"receipt",
 	"message.delete",
 	"message.revoke",
 	"message.reaction",

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aldinokemal/go-whatsapp-web-multidevice/domains/webhook"
+	domainwebhook "github.com/aldinokemal/go-whatsapp-web-multidevice/domains/webhook"
 	pkgError "github.com/aldinokemal/go-whatsapp-web-multidevice/pkg/error"
 	"github.com/google/uuid"
 )
@@ -17,7 +17,7 @@ type Repository struct {
 	isPostgres bool
 }
 
-func NewRepository(db *sql.DB, isPostgres bool) webhook.IWebhookRepository {
+func NewRepository(db *sql.DB, isPostgres bool) domainwebhook.IWebhookRepository {
 	return &Repository{db: db, isPostgres: isPostgres}
 }
 
@@ -74,7 +74,7 @@ func (r *Repository) InitializeSchema() error {
 	return tx.Commit()
 }
 
-func (r *Repository) Create(wh *webhook.Webhook) error {
+func (r *Repository) Create(wh *domainwebhook.Webhook) error {
 	if wh.ID == "" {
 		wh.ID = uuid.New().String()
 	}
@@ -105,7 +105,7 @@ func (r *Repository) Create(wh *webhook.Webhook) error {
 	return nil
 }
 
-func (r *Repository) Update(wh *webhook.Webhook) error {
+func (r *Repository) Update(wh *domainwebhook.Webhook) error {
 	if err := validateWebhookURL(wh.URL); err != nil {
 		return err
 	}
@@ -144,7 +144,7 @@ func (r *Repository) Delete(id string) error {
 	return nil
 }
 
-func (r *Repository) FindByID(id string) (*webhook.Webhook, error) {
+func (r *Repository) FindByID(id string) (*domainwebhook.Webhook, error) {
 	query := `SELECT id, url, secret, events, enabled, description, created_at, updated_at FROM webhooks WHERE id = ?`
 	if r.isPostgres {
 		query = `SELECT id, url, secret, events, enabled, description, created_at, updated_at FROM webhooks WHERE id = $1`
@@ -154,7 +154,7 @@ func (r *Repository) FindByID(id string) (*webhook.Webhook, error) {
 	return r.scanWebhook(row)
 }
 
-func (r *Repository) FindAll() ([]*webhook.Webhook, error) {
+func (r *Repository) FindAll() ([]*domainwebhook.Webhook, error) {
 	query := `SELECT id, url, secret, events, enabled, description, created_at, updated_at FROM webhooks ORDER BY created_at DESC`
 
 	rows, err := r.db.Query(query)
@@ -163,7 +163,7 @@ func (r *Repository) FindAll() ([]*webhook.Webhook, error) {
 	}
 	defer rows.Close()
 
-	var webhooks []*webhook.Webhook
+	var webhooks []*domainwebhook.Webhook
 	for rows.Next() {
 		wh, err := r.scanWebhook(rows)
 		if err != nil {
@@ -179,7 +179,7 @@ func (r *Repository) FindAll() ([]*webhook.Webhook, error) {
 	return webhooks, nil
 }
 
-func (r *Repository) FindByEvent(event string) ([]*webhook.Webhook, error) {
+func (r *Repository) FindByEvent(event string) ([]*domainwebhook.Webhook, error) {
 	query := `SELECT id, url, secret, events, enabled, description, created_at, updated_at FROM webhooks WHERE enabled = true`
 
 	rows, err := r.db.Query(query)
@@ -188,7 +188,7 @@ func (r *Repository) FindByEvent(event string) ([]*webhook.Webhook, error) {
 	}
 	defer rows.Close()
 
-	var webhooks []*webhook.Webhook
+	var webhooks []*domainwebhook.Webhook
 	for rows.Next() {
 		wh, err := r.scanWebhook(rows)
 		if err != nil {
@@ -210,7 +210,7 @@ func (r *Repository) FindByEvent(event string) ([]*webhook.Webhook, error) {
 	return webhooks, nil
 }
 
-func (r *Repository) FindEnabled() ([]*webhook.Webhook, error) {
+func (r *Repository) FindEnabled() ([]*domainwebhook.Webhook, error) {
 	query := `SELECT id, url, secret, events, enabled, description, created_at, updated_at FROM webhooks WHERE enabled = true ORDER BY created_at DESC`
 
 	rows, err := r.db.Query(query)
@@ -219,7 +219,7 @@ func (r *Repository) FindEnabled() ([]*webhook.Webhook, error) {
 	}
 	defer rows.Close()
 
-	var webhooks []*webhook.Webhook
+	var webhooks []*domainwebhook.Webhook
 	for rows.Next() {
 		wh, err := r.scanWebhook(rows)
 		if err != nil {
@@ -235,8 +235,8 @@ func (r *Repository) FindEnabled() ([]*webhook.Webhook, error) {
 	return webhooks, nil
 }
 
-func (r *Repository) scanWebhook(scanner interface{ Scan(...any) error }) (*webhook.Webhook, error) {
-	var wh webhook.Webhook
+func (r *Repository) scanWebhook(scanner interface{ Scan(...any) error }) (*domainwebhook.Webhook, error) {
+	var wh domainwebhook.Webhook
 	var eventsJSON string
 	var secret, description sql.NullString
 
