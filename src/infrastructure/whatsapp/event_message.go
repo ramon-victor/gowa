@@ -17,7 +17,6 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 )
 
-// forwardMessageToWebhook is a helper function to forward message event to webhook url
 func forwardMessageToWebhook(ctx context.Context, evt *events.Message) error {
 	webhookService := GetWebhookService()
 	if webhookService == nil {
@@ -37,6 +36,13 @@ func forwardMessageToWebhook(ctx context.Context, evt *events.Message) error {
 		}
 	}
 
+	// Ignore empty messages (no text, no media)
+	messageText := utils.ExtractMessageTextFromProto(evt.Message)
+	mediaType, _, _, _, _, _, _ := utils.ExtractMediaInfo(evt.Message)
+	if messageText == "" && mediaType == "" {
+		return nil
+	}
+
 	payload, err := createMessagePayload(ctx, evt)
 	if err != nil {
 		return err
@@ -45,14 +51,13 @@ func forwardMessageToWebhook(ctx context.Context, evt *events.Message) error {
 	return webhookService.SubmitWebhook(ctx, "message.received", payload)
 }
 
-// forwardReactionToWebhook forwards reaction events to webhook
 func forwardReactionToWebhook(ctx context.Context, evt *events.Message) error {
 	webhookService := GetWebhookService()
 	if webhookService == nil {
 		return nil
 	}
 
-	payload, err := createReactionPayload(ctx, evt)
+	payload, err := createReactionPayload(evt)
 	if err != nil {
 		return err
 	}
@@ -60,14 +65,13 @@ func forwardReactionToWebhook(ctx context.Context, evt *events.Message) error {
 	return webhookService.SubmitWebhook(ctx, "message.reaction", payload)
 }
 
-// forwardMessageRevokeToWebhook forwards message revoke events to webhook
 func forwardMessageRevokeToWebhook(ctx context.Context, evt *events.Message, protocolMessage *waE2E.ProtocolMessage) error {
 	webhookService := GetWebhookService()
 	if webhookService == nil {
 		return nil
 	}
 
-	payload, err := createMessageRevokePayload(ctx, evt, protocolMessage)
+	payload, err := createMessageRevokePayload(evt, protocolMessage)
 	if err != nil {
 		return err
 	}
@@ -233,7 +237,7 @@ func createMessagePayload(ctx context.Context, evt *events.Message) (map[string]
 }
 
 // createReactionPayload creates a webhook payload for reaction events
-func createReactionPayload(ctx context.Context, evt *events.Message) (map[string]any, error) {
+func createReactionPayload(evt *events.Message) (map[string]any, error) {
 	body := make(map[string]any)
 
 	// Basic message information
@@ -263,8 +267,7 @@ func createReactionPayload(ctx context.Context, evt *events.Message) (map[string
 	return body, nil
 }
 
-// createMessageRevokePayload creates a webhook payload for message revoke events
-func createMessageRevokePayload(ctx context.Context, evt *events.Message, protocolMessage *waE2E.ProtocolMessage) (map[string]any, error) {
+func createMessageRevokePayload(evt *events.Message, protocolMessage *waE2E.ProtocolMessage) (map[string]any, error) {
 	body := make(map[string]any)
 
 	// Basic message information
