@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"mime"
 	"net/http"
 	"os"
@@ -1059,68 +1060,43 @@ func (service serviceSend) SendSticker(ctx context.Context, request domainSend.S
 		deletedItems = append(deletedItems, stickerPath)
 	}
 
-	// Convert image to WebP format for sticker (512x512 max size)
-	srcImage, err := imaging.Open(stickerPath)
+	// Detect MIME type
+	fileHead := make([]byte, 512)
+	fOpen, err := os.Open(stickerPath)
 	if err != nil {
-		return response, pkgError.InternalServerError(fmt.Sprintf("failed to open image for sticker conversion: %v", err))
+		return response, pkgError.InternalServerError(fmt.Sprintf("failed to open sticker file: %v", err))
 	}
-
-	// Resize image to max 512x512 maintaining aspect ratio
-	bounds := srcImage.Bounds()
-	width := bounds.Dx()
-	height := bounds.Dy()
-
-	if width > 512 || height > 512 {
-		if width > height {
-			srcImage = imaging.Resize(srcImage, 512, 0, imaging.Lanczos)
-		} else {
-			srcImage = imaging.Resize(srcImage, 0, 512, imaging.Lanczos)
-		}
+	_, err = fOpen.Read(fileHead)
+	fOpen.Close()
+	if err != nil && err != io.EOF {
+		return response, pkgError.InternalServerError(fmt.Sprintf("failed to read sticker file head: %v", err))
 	}
+	mimeType := http.DetectContentType(fileHead)
 
-	// Convert to WebP using external command (ffmpeg or cwebp)
+	// Convert to WebP using ffmpeg
 	webpPath := filepath.Join(absBaseDir, fmt.Sprintf("sticker_%s.webp", fiberUtils.UUIDv4()))
 	deletedItems = append(deletedItems, webpPath)
-
-	// First save as PNG temporarily
-	pngPath := filepath.Join(absBaseDir, fmt.Sprintf("temp_%s.png", fiberUtils.UUIDv4()))
-	deletedItems = append(deletedItems, pngPath)
-
-	err = imaging.Save(srcImage, pngPath)
-	if err != nil {
-		return response, pkgError.InternalServerError(fmt.Sprintf("failed to save temporary PNG: %v", err))
-	}
-
-	// Try to use ffmpeg first (most common), then cwebp
-	var convertCmd *exec.Cmd
 
 	// Add execution timeout for conversion
 	convCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
 	defer cancel()
 
-	// Check if ffmpeg is available
-	if _, err := exec.LookPath("ffmpeg"); err == nil {
-		// Use ffmpeg to convert to WebP with transparency support, overwrite if exists
-		convertCmd = exec.CommandContext(convCtx, "ffmpeg", "-y", "-i", pngPath, "-vcodec", "libwebp", "-lossless", "0", "-compression_level", "6", "-q:v", "60", "-preset", "default", "-loop", "0", "-an", "-vsync", "0", webpPath)
-	} else if _, err := exec.LookPath("cwebp"); err == nil {
-		// Use cwebp as fallback
-		convertCmd = exec.CommandContext(convCtx, "cwebp", "-q", "60", "-o", webpPath, pngPath)
-	} else {
-		// If neither tool is available, return error
-		return response, pkgError.InternalServerError("neither ffmpeg nor cwebp is installed for WebP conversion")
+	if err := utils.ConvertToWebP(convCtx, stickerPath, webpPath, mimeType); err != nil {
+		return response, pkgError.InternalServerError(err.Error())
 	}
 
-	var stderr bytes.Buffer
-	convertCmd.Stderr = &stderr
-
-	if err := convertCmd.Run(); err != nil {
-		return response, pkgError.InternalServerError(fmt.Sprintf("failed to convert sticker to WebP: %v, stderr: %s", err, stderr.String()))
-	}
+	isAnimated := strings.HasPrefix(mimeType, "video/") || mimeType == "image/gif"
 
 	// Read the WebP file
 	stickerBytes, err = os.ReadFile(webpPath)
 	if err != nil {
 		return response, pkgError.InternalServerError(fmt.Sprintf("failed to read WebP sticker: %v", err))
+	}
+
+	// Inject Metadata
+	stickerBytes, err = utils.EmbedStickerEXIF(stickerBytes, request.PackID, request.PackName, request.PackPublisher, request.Emojis)
+	if err != nil {
+		logrus.Warnf("failed to inject EXIF chunk: %v", err)
 	}
 
 	// Upload sticker to WhatsApp servers
@@ -1139,9 +1115,9 @@ func (service serviceSend) SendSticker(ctx context.Context, request domainSend.S
 			FileSHA256:    stickerUploaded.FileSHA256,
 			FileEncSHA256: stickerUploaded.FileEncSHA256,
 			MediaKey:      stickerUploaded.MediaKey,
-			Width:         proto.Uint32(uint32(srcImage.Bounds().Dx())),
-			Height:        proto.Uint32(uint32(srcImage.Bounds().Dy())),
-			IsAnimated:    proto.Bool(false),
+			Width:         proto.Uint32(512),
+			Height:        proto.Uint32(512),
+			IsAnimated:    proto.Bool(isAnimated),
 		},
 	}
 

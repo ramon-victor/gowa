@@ -155,15 +155,19 @@ func ValidateSendSticker(ctx context.Context, request domainSend.StickerRequest)
 	// Validate file type if sticker file is provided
 	if request.Sticker != nil {
 		availableMimes := map[string]bool{
-			"image/jpeg": true,
-			"image/jpg":  true,
-			"image/png":  true,
-			"image/webp": true, // Also accept WebP directly
-			"image/gif":  true, // Support GIF for animated stickers
+			"image/jpeg":       true,
+			"image/jpg":        true,
+			"image/png":        true,
+			"image/webp":       true,
+			"image/gif":        true,
+			"video/mp4":        true,
+			"video/x-matroska": true,
+			"video/avi":        true,
+			"video/x-msvideo":  true,
 		}
 
 		if !availableMimes[request.Sticker.Header.Get("Content-Type")] {
-			return pkgError.ValidationError("your sticker is not allowed. please use jpg/jpeg/png/webp/gif")
+			return pkgError.ValidationError("your sticker is not allowed. please use jpg/jpeg/png/webp/gif/mp4/mkv/avi")
 		}
 	}
 
