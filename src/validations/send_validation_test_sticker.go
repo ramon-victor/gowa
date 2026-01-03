@@ -124,7 +124,7 @@ func TestValidateSendSticker(t *testing.T) {
 					},
 				},
 			},
-			err: pkgError.ValidationError("your sticker is not allowed. please use jpg/jpeg/png/webp/gif"),
+			err: pkgError.ValidationError("your sticker is not allowed. please use jpg/jpeg/png/webp/gif/mp4/mkv/avi"),
 		},
 		{
 			name: "should success with valid duration",

@@ -14,7 +14,11 @@ export default {
             sticker_url: null,
             preview_url: null,
             is_forwarded: false,
-            duration: 0
+            duration: 0,
+            pack_id: '',
+            pack_name: '',
+            pack_publisher: '',
+            emojis: ''
         }
     },
     computed: {
@@ -66,6 +70,14 @@ export default {
                 if (this.duration && this.duration > 0) {
                     payload.append("duration", this.duration)
                 }
+                if (this.pack_id) payload.append('pack_id', this.pack_id);
+                if (this.pack_name) payload.append('pack_name', this.pack_name);
+                if (this.pack_publisher) payload.append('pack_publisher', this.pack_publisher);
+                if (this.emojis) {
+                    // Split emojis by comma and trim whitespace
+                    const emojiList = this.emojis.split(',').map(e => e.trim()).filter(e => e);
+                    emojiList.forEach(emoji => payload.append('emojis', emoji));
+                }
                 
                 const fileInput = $("#file_sticker");
                 if (fileInput.length > 0 && fileInput[0].files.length > 0) {
@@ -95,6 +107,10 @@ export default {
             this.sticker_url = null;
             this.is_forwarded = false;
             this.duration = 0;
+            this.pack_id = '';
+            this.pack_name = '';
+            this.pack_publisher = '';
+            this.emojis = '';
             $("#file_sticker").val('');
         },
         handleStickerChange(event) {
@@ -160,6 +176,7 @@ export default {
                     <input type="text" v-model="sticker_url" placeholder="https://example.com/sticker.png"
                            aria-label="sticker_url"/>
                 </div>
+                
                 <div style="text-align: left; font-weight: bold; margin: 10px 0;">or you can upload sticker from your device</div>
                 <div class="field" style="padding-bottom: 30px">
                     <label>Sticker Image</label>
@@ -173,6 +190,29 @@ export default {
                             <img :src="preview_url" style="max-width: 100%; max-height: 300px; object-fit: contain" />
                             <div class="ui top attached label">Preview (will be converted to WebP sticker)</div>
                         </div>
+                    </div>
+                </div>
+
+                <div class="ui divider"></div>
+                <div style="text-align: left; font-weight: bold; margin: 10px 0;">Metadata (Optional)</div>
+                <div class="two fields">
+                    <div class="field">
+                        <label>Pack ID</label>
+                        <input type="text" v-model="pack_id" placeholder="my-pack-id" aria-label="pack_id"/>
+                    </div>
+                    <div class="field">
+                        <label>Pack Name</label>
+                        <input type="text" v-model="pack_name" placeholder="My Sticker Pack" aria-label="pack_name"/>
+                    </div>
+                </div>
+                <div class="two fields">
+                    <div class="field">
+                        <label>Pack Publisher</label>
+                        <input type="text" v-model="pack_publisher" placeholder="My Name" aria-label="pack_publisher"/>
+                    </div>
+                    <div class="field">
+                        <label>Emojis (comma separated)</label>
+                        <input type="text" v-model="emojis" placeholder="😀, 😂" aria-label="emojis"/>
                     </div>
                 </div>
             </form>

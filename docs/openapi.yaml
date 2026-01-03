@@ -1063,6 +1063,24 @@ paths:
                   type: string
                   example: https://example.com/sticker.png
                   description: URL of sticker image to send
+                pack_id:
+                  type: string
+                  example: 'my-pack-id'
+                  description: Sticker pack ID
+                pack_name:
+                  type: string
+                  example: 'My Sticker Pack'
+                  description: Sticker pack name
+                pack_publisher:
+                  type: string
+                  example: 'My Name'
+                  description: Sticker pack publisher
+                emojis:
+                  type: array
+                  items:
+                    type: string
+                  example: ['😀', '😂']
+                  description: Emojis associated with the sticker
                 duration:
                   type: integer
                   example: 3600
