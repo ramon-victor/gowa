@@ -1029,15 +1029,10 @@ app.listen(3001, () => {
 
 ### Error Handling
 
-The webhook system includes retry logic with exponential backoff:
-
-- **Timeout**: 10 seconds per request
-- **Max Attempts**: 5 retries
-- **Backoff**: Exponential (1s, 2s, 4s, 8s, 16s)
 
 Ensure your webhook endpoint:
 
-- Responds within 10 seconds
+- Responds within 60 seconds
 - Returns HTTP 2xx status for successful processing
 - Handles duplicate events gracefully
 - Validates signatures for security
@@ -1074,7 +1069,7 @@ WHATSAPP_WEBHOOK_SECRET=your-super-secret-key
 
 1. **Always verify signatures** to ensure webhook authenticity
 2. **Handle duplicates** - the same event might be sent multiple times
-3. **Process quickly** - respond within 10 seconds to avoid timeouts
+3. **Process quickly** - respond within 60 seconds to avoid timeouts
 4. **Log errors** for debugging webhook integration issues
 5. **Use HTTPS** for webhook URLs to ensure secure transmission
 6. **Store media files** locally if you need to process them later
