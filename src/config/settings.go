@@ -5,7 +5,7 @@ import (
 )
 
 var (
-	AppVersion             = "v8.1.2"
+	AppVersion             = "v8.3.0"
 	AppPort                = "3000"
 	AppHost                = "0.0.0.0"
 	AppDebug               = false
@@ -31,8 +31,9 @@ var (
 	WhatsappAutoDownloadMedia         = true  // Auto-download media from incoming messages
 	WhatsappWebhook                   []string
 	WhatsappWebhookSecret             = "secret"
-	WhatsappWebhookInsecureSkipVerify = false  // Skip TLS certificate verification for webhooks (insecure)
-	WhatsappWebhookEvents             []string // Whitelist of events to forward to webhook (empty = all events)
+	WhatsappWebhookInsecureSkipVerify = false          // Skip TLS certificate verification for webhooks (insecure)
+	WhatsappWebhookEvents             []string         // Whitelist of events to forward to webhook (empty = all events)
+	WhatsappAutoRejectCall                     = false // Auto-reject incoming calls
 	WhatsappLogLevel                           = "ERROR"
 	WhatsappSettingMaxImageSize       int64    = 20000000  // 20MB
 	WhatsappSettingMaxFileSize        int64    = 50000000  // 50MB
@@ -40,9 +41,22 @@ var (
 	WhatsappSettingMaxDownloadSize    int64    = 500000000 // 500MB
 	WhatsappTypeUser                           = "@s.whatsapp.net"
 	WhatsappTypeGroup                          = "@g.us"
+	WhatsappTypeLid                            = "@lid"
 	WhatsappAccountValidation                  = true
+	WhatsappPresenceOnConnect                  = "unavailable" // Presence to send on connect: "available", "unavailable", or "none"
 
 	ChatStorageURI               = "file:storages/chatstorage.db"
 	ChatStorageEnableForeignKeys = true
 	ChatStorageEnableWAL         = true
+
+	ChatwootEnabled   = false
+	ChatwootURL       = ""
+	ChatwootAPIToken  = ""
+	ChatwootAccountID = 0
+	ChatwootInboxID   = 0
+	ChatwootDeviceID  = "" // Device ID for outbound messages (required for multi-device)
+
+	// Chatwoot History Sync settings
+	ChatwootImportMessages          = false // Enable message history import to Chatwoot
+	ChatwootDaysLimitImportMessages = 3     // Days of history to import (default: 3)
 )
